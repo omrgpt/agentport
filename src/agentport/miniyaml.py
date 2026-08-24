@@ -145,13 +145,13 @@ class _Parser:
                 else:
                     items.append(None)
                 continue
-            if _KEY_LINE_RE.match(rest):
+            if rest.startswith("- ") or rest == "-":
+                self.lines[self.i] = (indent + 2, rest)
+                items.append(self.parse_list(indent + 2))
+            elif _KEY_LINE_RE.match(rest):
                 virtual = indent + 2
                 self.lines[self.i] = (virtual, rest)
                 items.append(self.parse_map(virtual))
-            elif rest.startswith("- ") or rest == "-":
-                self.lines[self.i] = (indent + 2, rest)
-                items.append(self.parse_list(indent + 2))
             else:
                 self.advance()
                 items.append(parse_scalar(rest))
@@ -300,7 +300,8 @@ def parse_quoted(value):
                     buf.append("'")
                     i += 2
                     continue
-                if i != len(value) - 1:
+                tail = value[i + 1:]
+                if tail.strip():
                     raise FormatError(f"mini-yaml: trailing junk after string: {value!r}")
                 return "".join(buf)
             buf.append(c)
@@ -320,7 +321,8 @@ def parse_quoted(value):
             i += 1
         if end is None:
             raise FormatError("mini-yaml: unterminated double-quoted string")
-        if end != len(value) - 1:
+        tail = value[end + 1:]
+        if tail.strip():
             raise FormatError(f"mini-yaml: trailing junk after string: {value!r}")
         return unescape_double(value[1:end])
     raise FormatError(f"mini-yaml: expected quoted string: {value!r}")
@@ -365,6 +367,8 @@ def parse_scalar(raw, depth=0):
 
 
 def parse(text):
+    from .safety import ensure_encodable
+
     raw_lines = text.split("\n")
     if len(raw_lines) > MAX_YAML_LINES:
         raise FormatError(f"mini-yaml: more than {MAX_YAML_LINES} lines")
@@ -386,6 +390,7 @@ def parse(text):
     if parser.i < len(lines):
         _, leftover = lines[parser.i]
         raise FormatError(f"mini-yaml: could not parse line: {leftover!r}")
+    ensure_encodable(result)
     return result
 
 
@@ -402,6 +407,7 @@ def format_scalar(value):
         return repr(value)
     if isinstance(value, str):
         if (_SAFE_PLAIN_RE.match(value)
+                and value == value.strip()
                 and value.lower() not in _RESERVED_WORDS
                 and not _NUMERIC_START_RE.match(value)):
             return value
@@ -411,7 +417,10 @@ def format_scalar(value):
 
 def _safe_key(key):
     key_str = str(key)
-    if key_str and _SAFE_PLAIN_RE.match(key_str) and not _NUMERIC_START_RE.match(key_str):
+    if (key_str
+            and key_str == key_str.strip()
+            and _SAFE_PLAIN_RE.match(key_str)
+            and not _NUMERIC_START_RE.match(key_str)):
         return key_str
     return json.dumps(key_str, ensure_ascii=False)
 
@@ -448,14 +457,17 @@ def _dict_item_lines(mapping, indent):
     first_value = mapping[first_key]
     lines = []
     if isinstance(first_value, dict):
-        sub = _pairs_lines(first_value, indent + 2)
-        head = sub[0].strip()
-        lines.append(f"{pad}- {head}")
-        lines.extend(sub[1:])
+        if first_value:
+            lines.append(f"{pad}- {fk}:")
+            lines.extend(_pairs_lines(first_value, indent + 4))
+        else:
+            lines.append(f"{pad}- {fk}: {{}}")
     elif isinstance(first_value, list):
-        sub = _list_lines(first_value, indent + 2)
-        lines.append(f"{pad}- {sub[0].strip()}")
-        lines.extend(sub[1:])
+        if first_value:
+            lines.append(f"{pad}- {fk}:")
+            lines.extend(_list_lines(first_value, indent + 4))
+        else:
+            lines.append(f"{pad}- {fk}: []")
     else:
         lines.append(f"{pad}- {fk}: {format_scalar(first_value)}")
     rest = {k: mapping[k] for k in keys[1:]}
@@ -470,6 +482,9 @@ def _list_lines(items, indent):
         if isinstance(item, dict):
             lines.extend(_dict_item_lines(item, indent))
         elif isinstance(item, list):
+            if not item:
+                lines.append(f"{pad}- []")
+                continue
             sub = _list_lines(item, indent + 2)
             lines.append(f"{pad}- {sub[0].strip()}")
             lines.extend(sub[1:])

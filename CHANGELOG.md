@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.1.2 - 2026-08-24
+
+Deep-test campaign: ~7,600 adversarial/property/matrix scenarios. Found and
+fixed 8 defects; added permanent regression suite (`tests/test_campaign_regressions.py`).
+
+### Fixed
+- YAML dump dropped trailing whitespace inside strings that qualified as
+  "plain-safe"; such strings are now force-quoted (same for keys).
+- YAML list-items whose first key mapped to a collection rendered as `- - x`,
+  which re-parsed as a nested list instead of a map; collections now nest
+  under the key with deeper indent.
+- Empty list inside a list-item crashed the dumper (`IndexError`) and an
+  empty-collection item emitted `- []` which the parser rejected after the
+  branch reorder; both directions verified by round-trip.
+- Parser branch order treated `- inner:` as a key named "- inner" instead of
+  a nested sequence element; nested-list detection now takes priority,
+  matching the YAML spec rule that plain scalars cannot start with "- ".
+- `--prune` filtered only the parsed model, not the raw base document the
+  renderer reads from, so pruned servers silently survived in output files.
+- `--out <existing-directory>` returned exit code 3 (conflict) instead of
+  exit code 2 (safety); directory/symlink check now runs before conflict
+  checks on every write path.
+- Skill install names matching Windows reserved device names (con, nul,
+  com1-9, lpt1-9, ...) are rejected before any path is constructed; also
+  enforced on normalize-rename and cursor export.
+- JSON `\uD800`-style lone surrogates crashed downstream UTF-8 writes;
+  all three parsers now reject unpaired surrogates with a clean format
+  error via a stack-based (recursion-proof) validator.
+
+### Hardened
+- `ensure_encodable` iterative walker shared by miniyaml/minitoml/jsonc.
+- Parent-directory creation failures during atomic writes surface as exit
+  code 2 with actionable hints.
+
 ## 0.1.1 - 2026-08-24
 
 Security review pass (adversarial suite added; workspace audit passed 0 FAIL / 0 WARN).

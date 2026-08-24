@@ -377,9 +377,17 @@ def _split_dotted(header):
 def parse(text):
     if _toml_reader is not None:
         import io
-        data = text.encode("utf-8")
+        data = text.encode("utf-8", "strict")
         try:
-            return _toml_reader.load(io.BytesIO(data))
+            result = _toml_reader.load(io.BytesIO(data))
+        except UnicodeEncodeError as exc:
+            raise FormatError(f"invalid TOML encoding: {exc}")
         except Exception as exc:
             raise FormatError(f"invalid TOML: {exc}")
-    return parse_fallback(text)
+        from .safety import ensure_encodable
+        ensure_encodable(result)
+        return result
+    result = parse_fallback(text)
+    from .safety import ensure_encodable
+    ensure_encodable(result)
+    return result

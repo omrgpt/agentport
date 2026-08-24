@@ -3,7 +3,11 @@ import re
 from ..errors import FormatError
 from ..frontmatter import render_frontmatter, split_frontmatter
 from ..ir import SkillDoc
-from ..safety import ensure_trailing_newline, normalize_newlines
+from ..safety import (
+    WINDOWS_RESERVED_NAMES,
+    ensure_trailing_newline,
+    normalize_newlines,
+)
 
 NAME_MAX = 64
 DESC_MAX = 1024
@@ -109,6 +113,23 @@ def validate_skill(doc, dir_name=None, warnings=None):
             "use skills normalize to align them"
         )
     return issues
+
+
+def validate_install_name(name):
+    if not NAME_RE.match(name or ""):
+        raise FormatError(
+            f"invalid skill name for install folder: {name!r}",
+            hint="names must be lowercase letters, digits and hyphens "
+                 "(use --name with a clean name or skills normalize first)",
+        )
+    if len(name) > NAME_MAX:
+        raise FormatError(f"skill name too long ({len(name)} > {NAME_MAX})")
+    if name in WINDOWS_RESERVED_NAMES:
+        raise FormatError(
+            f"'{name}' is a reserved Windows device name and cannot be used "
+            "as a folder name",
+        )
+    return name
 
 
 def load_skill_dir(dir_path, warnings):

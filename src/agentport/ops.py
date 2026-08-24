@@ -10,6 +10,7 @@ from .safety import (
     atomic_write_text,
     collect_bundle_files,
     copy_bundle_file,
+    ensure_writable_file,
     ensure_within,
     read_text_capped,
 )
@@ -147,6 +148,7 @@ def convert_instructions(root, src_path, target_key, out_path=None, *, descripti
     else:
         dest = root_p / instr.INSTRUCTION_TARGETS[target_key]
         ensure_within(root_p, dest)
+    ensure_writable_file(dest)
     exists = dest.exists()
     if exists and not force and not dry_run:
         raise ConflictError(
@@ -243,6 +245,7 @@ def mcp_convert(root, src_path, target_family, out_path=None, *, from_family=Non
             dest = root_p / default_rel
         ensure_within(root_p, dest)
 
+    ensure_writable_file(dest)
     existing_text = None
     had_comments = False
     base_doc = None
@@ -268,6 +271,12 @@ def mcp_convert(root, src_path, target_family, out_path=None, *, from_family=Non
             if pruned_names:
                 warnings.append("WARN pruning servers absent from source: " + ", ".join(sorted(pruned_names)))
                 base_doc.servers = [s for s in base_doc.servers if s.name in keep]
+                if base_raw is not None:
+                    for section_key in ("mcpServers", "servers", "mcp", "mcp_servers"):
+                        section = base_raw.get(section_key)
+                        if isinstance(section, dict):
+                            for pruned_name in pruned_names:
+                                section.pop(pruned_name, None)
     else:
         base_doc, base_raw = None, None
         if doc.extras and not replace:
@@ -376,13 +385,18 @@ def skills_normalize(root, skill_path, dry_run=False, force=False, warnings=None
         else:
             atomic_write_text(skill_file, new_text)
             folder = p.name
-            if folder != doc.name and re.fullmatch(r"[a-z0-9-]+", doc.name or ""):
-                new_dir = ensure_within(root_p, p.parent / doc.name)
-                if new_dir.exists():
-                    warnings.append(f"WARN cannot rename folder: {new_dir} already exists")
+            if folder != doc.name:
+                try:
+                    skillf.validate_install_name(doc.name)
+                except FormatError as name_exc:
+                    warnings.append(f"WARN cannot rename folder: {name_exc.message}")
                 else:
-                    p.rename(new_dir)
-                    result["renamed_to"] = str(new_dir)
+                    new_dir = ensure_within(root_p, p.parent / doc.name)
+                    if new_dir.exists():
+                        warnings.append(f"WARN cannot rename folder: {new_dir} already exists")
+                    else:
+                        p.rename(new_dir)
+                        result["renamed_to"] = str(new_dir)
     return result
 
 
@@ -404,14 +418,7 @@ def skills_import(root, src_dir, target, name_override=None, *, dry_run=False, f
         )
     skillf.apply_normalizations(doc, warnings)
     final_name = name_override or doc.name
-    if not skillf.NAME_RE.match(final_name or ""):
-        raise FormatError(
-            f"invalid skill name for install folder: {final_name!r}",
-            hint="names must be lowercase letters, digits and hyphens "
-                 "(use --name with a clean name or skills normalize first)",
-        )
-    if len(final_name) > skillf.NAME_MAX:
-        raise FormatError(f"skill name too long ({len(final_name)} > {skillf.NAME_MAX})")
+    skillf.validate_install_name(final_name)
     bundle = collect_bundle_files(p, warnings)
     dest_root = ensure_within(root_p, root_p / skillf.SKILL_TARGET_DIRS[target])
     dest_dir = ensure_within(root_p, dest_root / final_name)
@@ -444,9 +451,11 @@ def skills_export(root, src_dir, target, out_path=None, *, dry_run=False, force=
     doc = skillf.load_skill_dir(p, warnings)
     body = doc.body
     if target == "cursor":
-        if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?", doc.name or ""):
+        try:
+            skillf.validate_install_name(doc.name)
+        except FormatError as name_exc:
             raise FormatError(
-                f"cannot export: invalid skill name {doc.name!r}",
+                f"cannot export: {name_exc.message}",
                 hint="run 'agentport skills normalize' first to fix the name",
             )
         desc = description or doc.description
@@ -455,6 +464,7 @@ def skills_export(root, src_dir, target, out_path=None, *, dry_run=False, force=
             dest = ensure_within(root_p, out_path)
         else:
             dest = ensure_within(root_p, root_p / ".cursor/rules" / f"{doc.name}.mdc")
+        ensure_writable_file(dest)
         if dest.exists() and not force and not dry_run:
             raise ConflictError(f"target already exists: {dest}", hint="use --force or --out")
         result = {"dest": str(dest), "bytes": len(out_text.encode()), "changed": True}

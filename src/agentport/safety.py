@@ -21,6 +21,33 @@ UNSAFE_SKILL_EXT = {
     ".dll", ".so", ".dylib", ".com", ".scr", ".msi", ".jar", ".vbs", ".wsf",
 }
 
+WINDOWS_RESERVED_NAMES = {
+    "con", "prn", "aux", "nul",
+    "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+}
+
+
+def ensure_encodable(obj):
+    stack = [obj]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, str):
+            try:
+                current.encode("utf-8")
+            except UnicodeEncodeError:
+                raise FormatError(
+                    "input contains unpaired surrogates or characters that "
+                    "cannot be encoded as UTF-8"
+                )
+        elif isinstance(current, dict):
+            for k, v in current.items():
+                stack.append(k)
+                stack.append(v)
+        elif isinstance(current, (list, tuple)):
+            stack.extend(current)
+    return obj
+
 
 def _check_path_text(target):
     s = str(target)
@@ -87,7 +114,7 @@ def read_text_capped(path, what="file", max_bytes=MAX_TEXT_BYTES):
     return text.lstrip("\ufeff")
 
 
-def atomic_write_text(path, text):
+def ensure_writable_file(path):
     p = Path(path)
     _check_path_text(p if p.is_absolute() else p)
     if p.is_symlink():
@@ -100,8 +127,19 @@ def atomic_write_text(path, text):
             f"output path is an existing directory: {p}",
             hint="pass a file path via --out",
         )
+    return p
+
+
+def atomic_write_text(path, text):
+    p = ensure_writable_file(path)
     parent = p.parent
-    parent.mkdir(parents=True, exist_ok=True)
+    try:
+        parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SafetyError(
+            f"cannot create output directory {parent}",
+            hint=str(exc),
+        )
     fd, tmp_name = tempfile.mkstemp(
         dir=str(parent), prefix=".agentport-", suffix=".tmp"
     )
@@ -221,7 +259,13 @@ def copy_bundle_file(src_full, dest_root, rel_posix):
     dest_root = Path(dest_root)
     pp = safe_rel_path(rel_posix)
     dest = ensure_within(dest_root, dest_root.joinpath(*pp.parts))
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise SafetyError(
+            f"cannot create skill directory {dest.parent}",
+            hint=str(exc),
+        )
     with open(src_full, "rb") as fh:
         data = fh.read(MAX_SKILL_FILE_BYTES + 1)
     if len(data) > MAX_SKILL_FILE_BYTES:

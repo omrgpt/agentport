@@ -88,12 +88,16 @@ def _no_dup_pairs(pairs):
 
 
 def loads_strict(text):
+    from .safety import ensure_encodable
+
     try:
-        return json.loads(text, object_pairs_hook=_no_dup_pairs)
+        parsed = json.loads(text, object_pairs_hook=_no_dup_pairs)
     except RecursionError:
         raise FormatError("json/jsonc: nesting too deep")
     except json.JSONDecodeError as exc:
         raise FormatError(f"invalid JSON near line {exc.lineno}, column {exc.colno}: {exc.msg}")
+    ensure_encodable(parsed)
+    return parsed
 
 
 def loads_jsonc(text):
