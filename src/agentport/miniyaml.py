@@ -5,6 +5,7 @@ from .errors import FormatError
 
 MAX_YAML_LINES = 4000
 MAX_FLOW_DEPTH = 32
+MAX_BLOCK_DEPTH = 64
 
 _RESERVED_WORDS = {"true", "false", "null", "~"}
 _NUMERIC_START_RE = re.compile(r"^[-+0-9.]")
@@ -16,6 +17,7 @@ class _Parser:
     def __init__(self, lines):
         self.lines = lines
         self.i = 0
+        self.depth = 0
 
     def cur(self):
         if self.i < len(self.lines):
@@ -33,26 +35,32 @@ class _Parser:
             return {}
         if first[1].startswith("- ") or first[1] == "-":
             return self.parse_list(first[0])
-        return self.parse_map(first[0])
+        return self.parse_map(first[0], 1)
 
-    def parse_node(self, indent):
+    def parse_node(self, indent, depth=0):
         _, content = self.cur()
         if content.startswith("- ") or content == "-":
-            return self.parse_list(indent)
-        return self.parse_map(indent)
+            return self.parse_list(indent, depth)
+        return self.parse_map(indent, max(depth, 1))
 
-    def parse_block_after_key(self, key_indent):
+    def parse_block_after_key(self, key_indent, depth=0):
         nxt = self.cur()
         if nxt is None:
             return None
         nindent, ncontent = nxt
         if nindent > key_indent:
-            return self.parse_node(nindent)
+            return self.parse_node(nindent, depth + 1)
         if nindent == key_indent and (ncontent.startswith("- ") or ncontent == "-"):
-            return self.parse_list(nindent)
+            return self.parse_list(nindent, depth)
         return None
 
-    def parse_map(self, indent):
+    def parse_map(self, indent, depth=0):
+        if depth > MAX_BLOCK_DEPTH:
+            raise FormatError(
+                f"mini-yaml: block nesting deeper than {MAX_BLOCK_DEPTH}"
+            )
+        if depth > self.depth:
+            self.depth = depth
         result = {}
         while True:
             entry = self.cur()
@@ -76,7 +84,7 @@ class _Parser:
                 raise FormatError(f"mini-yaml: duplicate key: {key}")
             self.advance()
             if value_part == "":
-                result[key] = self.parse_block_after_key(indent)
+                result[key] = self.parse_block_after_key(indent, depth)
             elif value_part[0] in "|>":
                 if any(ch not in "|>+-" for ch in value_part):
                     result[key] = parse_scalar(value_part)
@@ -126,7 +134,7 @@ class _Parser:
             body = body.rstrip("\n")
         return body
 
-    def parse_list(self, indent):
+    def parse_list(self, indent, depth=0):
         items = []
         while True:
             entry = self.cur()
@@ -136,22 +144,28 @@ class _Parser:
             is_item = econtent.startswith("- ") or econtent == "-"
             if eindent != indent or not is_item:
                 break
+            if depth > MAX_BLOCK_DEPTH:
+                raise FormatError(
+                    f"mini-yaml: block nesting deeper than {MAX_BLOCK_DEPTH}"
+                )
+            if depth > self.depth:
+                self.depth = depth
             rest = econtent[2:].strip() if econtent != "-" else ""
             if rest == "":
                 self.advance()
                 nxt = self.cur()
                 if nxt is not None and nxt[0] > indent:
-                    items.append(self.parse_node(nxt[0]))
+                    items.append(self.parse_node(nxt[0], depth + 1))
                 else:
                     items.append(None)
                 continue
             if rest.startswith("- ") or rest == "-":
                 self.lines[self.i] = (indent + 2, rest)
-                items.append(self.parse_list(indent + 2))
+                items.append(self.parse_list(indent + 2, depth + 1))
             elif _KEY_LINE_RE.match(rest):
                 virtual = indent + 2
                 self.lines[self.i] = (virtual, rest)
-                items.append(self.parse_map(virtual))
+                items.append(self.parse_map(virtual, depth + 1))
             else:
                 self.advance()
                 items.append(parse_scalar(rest))
@@ -333,6 +347,10 @@ _FLOAT_RE = re.compile(r"^[-+]?([0-9]+\.[0-9]*|[0-9]*\.[0-9]+)([eE][-+]?[0-9]+)?
 _EXP_RE = re.compile(r"^[-+]?[0-9]+[eE][-+]?[0-9]+$")
 
 
+_RESERVED_YAML1_1 = {"y", "Y", "yes", "Yes", "YES", "n", "N", "no", "No",
+                     "NO", "on", "On", "ON", "off", "Off", "OFF"}
+
+
 def parse_scalar(raw, depth=0):
     if depth > MAX_FLOW_DEPTH:
         raise FormatError(f"mini-yaml: flow collections nested deeper than {MAX_FLOW_DEPTH}")
@@ -342,9 +360,11 @@ def parse_scalar(raw, depth=0):
     lowered = value.lower()
     if lowered in ("null", "~"):
         return None
-    if lowered == "true":
+    if lowered == "true" or value in _RESERVED_YAML1_1 and lowered in (
+            "y", "yes", "on"):
         return True
-    if lowered == "false":
+    if lowered == "false" or (value in _RESERVED_YAML1_1 and lowered in (
+            "n", "no", "off")):
         return False
     if _INT_RE.match(value):
         return int(value)
@@ -409,6 +429,7 @@ def format_scalar(value):
         if (_SAFE_PLAIN_RE.match(value)
                 and value == value.strip()
                 and value.lower() not in _RESERVED_WORDS
+                and value not in _RESERVED_YAML1_1
                 and not _NUMERIC_START_RE.match(value)):
             return value
         return json.dumps(value, ensure_ascii=False)

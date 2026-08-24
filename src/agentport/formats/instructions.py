@@ -62,7 +62,7 @@ def normalize_body(body):
     return ensure_trailing_newline(normalize_newlines(body)).rstrip("\n") + "\n"
 
 
-def render_cursor_rule(body, description=None, globs=None, always_apply=True,
+def render_cursor_rule(body, description=None, globs=None, always_apply=None,
                        source_meta=None):
     desc = description
     if not desc and source_meta and isinstance(source_meta.get("description"), str):
@@ -82,6 +82,20 @@ def render_cursor_rule(body, description=None, globs=None, always_apply=True,
     if always_apply is None:
         if source_meta and isinstance(source_meta.get("alwaysApply"), bool):
             always_apply = source_meta["alwaysApply"]
+        elif (source_meta and source_meta.get("alwaysApply") is not None
+                and not isinstance(source_meta.get("alwaysApply"),
+                                   (dict, list))):
+            # Tolerate string/number forms from lenient frontmatter sources;
+            # only an explicit YAML-1.1 truthy token flips the default.
+            raw = source_meta.get("alwaysApply")
+            if isinstance(raw, str) and raw.strip().lower() in (
+                    "yes", "on", "y", "true"):
+                always_apply = True
+            elif isinstance(raw, str) and raw.strip().lower() in (
+                    "no", "off", "n", "false"):
+                always_apply = False
+            else:
+                always_apply = bool(raw)
         else:
             always_apply = True
     meta["alwaysApply"] = bool(always_apply)

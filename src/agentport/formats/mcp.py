@@ -117,6 +117,11 @@ def _split_extras(mapping, known_keys):
 
 def parse_family_json(obj, family, warnings):
     doc = McpDocument()
+    if not isinstance(obj, dict):
+        raise FormatError(
+            f"{family}: config root must be a JSON object, "
+            f"got {type(obj).__name__}"
+        )
     key = SERVER_KEY_BY_FAMILY[family]
     servers_raw = obj.get(key)
     if servers_raw is None:
@@ -157,6 +162,11 @@ def parse_family_json(obj, family, warnings):
 
 def parse_vscode(obj, warnings):
     doc = McpDocument()
+    if not isinstance(obj, dict):
+        raise FormatError(
+            f"vscode: config root must be a JSON object, "
+            f"got {type(obj).__name__}"
+        )
     servers_raw = obj.get("servers")
     if servers_raw is None:
         warnings.append("WARN vscode: no 'servers' section found; treating as empty")
@@ -190,12 +200,21 @@ def parse_vscode(obj, warnings):
             warnings.append(f"WARN {ctx}: cannot determine transport; skipped")
             srv = None
         if srv is not None:
+            # Honor a well-known 'disabled' extra so round-trips rehydrate
+            # the flag even though VS Code has no native disable concept.
+            if cfg.get("disabled") is True:
+                srv.disabled = True
             doc.servers.append(srv)
     return doc
 
 
 def parse_opencode(obj, warnings):
     doc = McpDocument()
+    if not isinstance(obj, dict):
+        raise FormatError(
+            f"opencode: config root must be a JSON object, "
+            f"got {type(obj).__name__}"
+        )
     servers_raw = obj.get("mcp")
     if servers_raw is None:
         warnings.append("WARN opencode: no 'mcp' section found; treating as empty")
@@ -244,6 +263,10 @@ def parse_opencode(obj, warnings):
 
 def parse_codex(obj, warnings):
     doc = McpDocument()
+    if not isinstance(obj, dict):
+        raise FormatError(
+            f"codex: config root must be a table, got {type(obj).__name__}"
+        )
     doc.extras = {k: v for k, v in obj.items() if k != "mcp_servers"}
     servers_raw = obj.get("mcp_servers", {})
     if not isinstance(servers_raw, dict):
@@ -363,10 +386,15 @@ def render_server_for_json_families(srv, family, warnings):
     if srv.disabled:
         if family in ("claude", "windsurf", "gemini"):
             warnings.append(
-                f"WARN {family} does not support disabling servers; '{srv.name}' emitted fully enabled"
+                f"WARN {family} does not support disabling servers; "
+                f"'{srv.name}' emitted fully enabled (was disabled in source)"
             )
         elif family == "cursor":
             entry["disabled"] = True
+        elif family == "vscode":
+            # VS Code has no native disable flag; keep the state losslessly
+            # as a well-known extra so round-trips preserve it.
+            entry.setdefault("disabled", True)
     for k, v in srv.extras.items():
         entry.setdefault(k, v)
     return entry
@@ -421,6 +449,9 @@ def render_vscode(doc, base_obj, replace, conflict_policy, warnings):
             rendered["url"] = srv.url
             if srv.headers:
                 rendered["headers"] = dict(srv.headers)
+        if srv.disabled:
+            # VS Code has no native disable flag; keep state losslessly.
+            rendered.setdefault("disabled", True)
         for k, v in srv.extras.items():
             rendered.setdefault(k, v)
         if srv.name in merged:

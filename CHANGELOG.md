@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.1.1 (unreleased)
+
+### Security hardening (2026-08-24 adversarial campaign)
+
+- Secret masking now recognizes `PAT` and `BEARER` as standalone key tokens
+  (`GITHUB_PAT`, `AUTH_BEARER_X`, ...) in `mcp show` output.
+- Skill bundle collection skips NTFS junctions / reparse-point directories
+  with a warning, preventing files outside the skill folder from being copied
+  into installed skills.
+- Deeply nested YAML frontmatter (> 64 block levels) is refused with a clean
+  format error instead of crashing with RecursionError.
+- Non-object JSON/TOML config roots (e.g. a top-level JSON array) are refused
+  with a clean format error instead of an internal AttributeError.
+- The MCP `disabled` flag survives claude -> vscode -> claude round-trips
+  (kept as a well-known extra for VS Code, which has no native flag); targets
+  without any disable concept now emit a warning naming the affected servers
+  instead of silently dropping the state.
+- Cursor `.mdc` frontmatter: YAML 1.1 booleans (`yes/no/on/off/y/n`) are
+  parsed as booleans and quoted when written as strings, so a rule authored
+  with `alwaysApply: no` no longer round-trips into `alwaysApply: true`.
+- Paths containing control characters are refused with a safety error
+  instead of surfacing an OS error as an unexpected crash.
+- Terminal hygiene: hostile content in skill names/descriptions/bodies can no
+  longer inject ANSI escape sequences through the `skills validate` issue
+  list or the `skills export --to markdown` stdout path.
+
+### Fixed
+
+- `skills import` no longer crashes with an internal NameError when reporting
+  an invalid skill name; it prints the intended validation message.
+
 ## 0.1.2 - 2026-08-24
 
 Deep-test campaign: ~7,600 adversarial/property/matrix scenarios. Found and

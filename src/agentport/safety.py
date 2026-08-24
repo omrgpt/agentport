@@ -5,6 +5,23 @@ from pathlib import Path
 
 from .errors import FormatError, SafetyError
 
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+
+
+def is_reparse_point(path):
+    """True if path is an NTFS symlink/junction/mount point (Windows).
+
+    Uses only os.lstat file attributes - no ctypes, no handle resolution.
+    Containment for such paths is still enforced by ensure_within because
+    Path.resolve() follows reparse points via the OS.
+    """
+    try:
+        st = os.lstat(str(path))
+        attrs = getattr(st, "st_file_attributes", 0)
+    except OSError:
+        return False
+    return bool(attrs & _FILE_ATTRIBUTE_REPARSE_POINT)
+
 MAX_TEXT_BYTES = 1024 * 1024
 MAX_JSON_BYTES = 5 * 1024 * 1024
 MAX_SKILL_FILE_BYTES = 512 * 1024
@@ -12,7 +29,10 @@ MAX_SKILL_TOTAL_BYTES = 2 * 1024 * 1024
 MAX_SKILL_FILES = 200
 
 SECRET_KEY_RE = re.compile(
-    r"(token|secret|password|passwd|pwd|api[-_]?key|access[-_]?key|auth|credential|private[-_]?key|session)",
+    r"(token|secret|password|passwd|pwd|api[-_]?key|access[-_]?key|auth"
+    r"|credential|private[-_]?key|session"
+    r"|(^|[_-])pat([_\-0-9]|$)"
+    r"|(^|[_-])bearer([_-]|$))",
     re.IGNORECASE,
 )
 
@@ -53,6 +73,12 @@ def _check_path_text(target):
     s = str(target)
     if "\x00" in s:
         raise SafetyError("path contains a NUL byte")
+    for ch in s:
+        if ord(ch) < 0x20 or ord(ch) == 0x7F:
+            raise SafetyError(
+                f"path contains control character U+{ord(ch):04X}",
+                hint="control characters in paths are not supported",
+            )
     parts = Path(s).parts
     for idx, part in enumerate(parts):
         if idx == 0 and len(part) >= 2 and part[1] == ":" and part[0].isalpha():
@@ -214,10 +240,20 @@ def collect_bundle_files(src_dir, warnings):
     collected = []
     total = 0
     count = 0
-    for dirpath, dirnames, filenames in os.walk(src):
-        dirnames[:] = sorted(
-            d for d in dirnames if d != ".git" and not d.startswith(".")
-        )
+    for dirpath, dirnames, filenames in os.walk(src, topdown=True):
+        # prune reparse-point dirs (junctions/symlinks): never traverse them
+        pruned = []
+        for d in dirnames:
+            full_d = Path(dirpath) / d
+            if is_reparse_point(full_d):
+                warnings.append(
+                    f"WARN skipped junction/reparse dir for security: "
+                    f"{full_d.relative_to(src)}"
+                )
+            else:
+                pruned.append(d)
+        dirnames[:] = sorted(d for d in pruned
+                             if d != ".git" and not d.startswith("."))
         for name in sorted(filenames):
             if name.startswith("."):
                 continue

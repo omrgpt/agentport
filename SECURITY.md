@@ -55,7 +55,15 @@ repository you cloned). The tool must never become an escalation path.
 13. Parser resource limits. YAML flow collections and TOML/JSON values have
     explicit nesting-depth limits that raise clean format errors instead of
     RecursionError; tab indentation in frontmatter is rejected before
-    whitespace expansion can hide it.
+    whitespace expansion can hide it. Block-style YAML nesting is likewise
+    depth-capped, and non-object JSON/TOML document roots are refused with a
+    clean format error.
+14. Junction discipline. On Windows, skill bundle collection skips NTFS
+    junctions / reparse-point directories (not just symlinks), so a hostile
+    skill folder cannot pull in files from elsewhere on the machine.
+15. Terminal-output hygiene applies to every emission path, including raw
+    stdout writes (`skills export --to markdown`) and validation issue lists,
+    so hostile skill names/descriptions/bodies cannot inject ANSI escapes.
 
 ## Known limitations
 

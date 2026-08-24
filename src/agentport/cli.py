@@ -194,12 +194,12 @@ def cmd_skills_validate(args, fmt):
     result = ops.skills_validate(args.root, args.path, warnings=warnings)
     _emit_warnings(warnings, fmt, args.strict)
     if result["ok"]:
-        print(f"{fmt.ok('PASS')}: skill '{result['name']}'")
+        print(f"{fmt.ok('PASS')}: skill '{sanitize(result['name'])}'")
         print(fmt.dim(f"  description: {result['description_preview']}"))
         return 0
-    print(f"{fmt.err('FAIL')}: skill '{result['name']}'")
+    print(f"{fmt.err('FAIL')}: skill '{sanitize(result['name'])}'")
     for issue in result["issues"]:
-        print(f"  - {issue}")
+        print(f"  - {sanitize(issue)}")
     return 1
 
 
@@ -247,7 +247,7 @@ def cmd_skills_export(args, fmt):
     )
     _emit_warnings(warnings, fmt, args.strict)
     if "stdout" in result:
-        sys.stdout.write(result["stdout"])
+        sys.stdout.write(sanitize(result["stdout"]))
         return 0
     verb = "planned" if args.dry_run else "wrote"
     print(f"{fmt.ok(verb)}: {result['dest']} ({result['bytes']} bytes)")

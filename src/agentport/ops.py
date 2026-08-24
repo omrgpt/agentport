@@ -414,7 +414,8 @@ def skills_import(root, src_dir, target, name_override=None, *, dry_run=False, f
     if fatal:
         raise FormatError(
             "skill failed validation; fix these issues first:",
-            hint="; ".join(fatal) + " | run: agentport skills normalize " + str(skill_path),
+            hint="; ".join(fatal) + " | run: agentport skills normalize "
+                 + str(src_dir),
         )
     skillf.apply_normalizations(doc, warnings)
     final_name = name_override or doc.name
