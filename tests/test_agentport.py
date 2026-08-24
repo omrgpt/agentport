@@ -88,8 +88,6 @@ def test_mcp_conversion_chain_masks_secrets(project):
 
 
 def test_codex_toml_source_parses(project):
-    import tomllib
-
     shutil.copy(FIXTURES / "codex_config.toml", project / "config.toml")
     rc, out = run_cli([
         "--root", str(project), "--no-color",
