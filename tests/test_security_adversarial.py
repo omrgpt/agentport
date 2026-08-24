@@ -315,14 +315,14 @@ class TestTerminalInjection:
         rc, out, err = run_cli(["--root", str(project), "--no-color", "mcp", "show", "evil.json"])
         raw = out + err
         assert rc in (0, 1)
-        assert "\x1b]0;" not in raw.replace("\x1b[32m", "").replace("\x1b[0m", "") \
-            if False else "\x1b]0;" not in raw
+        assert "\x1b]0;" not in raw
         assert "PWNED" in raw
 
     def test_error_repr_does_not_emit_raw_control_chars(self):
         from agentport.errors import FormatError
 
-        exc = FormatError(f"cannot parse line: {'\\x1b' .encode().decode('unicode_escape')!r}")
+        esc = chr(27)
+        exc = FormatError("cannot parse line: " + repr(esc + "]0;pwned"))
         assert "\\x1b" in str(exc) or "\x1b" not in str(exc)
 
 

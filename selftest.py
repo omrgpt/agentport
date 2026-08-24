@@ -205,7 +205,8 @@ def _():
     obj = {"top": "v", "mcp_servers": {"a b": {"command": "x", "args": ["1", "2"], "env": {"K": "#v"}}}}
     text = minitoml.dumps(obj)
     assert "[mcp_servers." in text or '["a b"' in text or '"a b"' in text
-    if hasattr(__import__("tomllib"), "load"):
+    has_tomllib = sys.version_info >= (3, 11)
+    if has_tomllib:
         import io
         import tomllib
         back = tomllib.load(io.BytesIO(text.encode()))
