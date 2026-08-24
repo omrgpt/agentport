@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "fetch": {
+      "url": "https://example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_ME"
+      }
+    }
+  }
+}

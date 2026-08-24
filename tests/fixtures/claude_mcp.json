@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\projects\\demo"]
+    },
+    "github": {
+      "command": "node",
+      "args": ["gh-mcp.js"],
+      "env": {
+        "GITHUB_TOKEN": "fake-token-value-not-a-real-credential"
+      }
+    },
+    "remote-docs": {
+      "url": "https://docs.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer fake-bearer-test-only"
+      }
+    }
+  }
+}

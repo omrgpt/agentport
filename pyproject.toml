@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentport"
+version = "0.1.0"
+description = "Lightweight, security-first converter between coding-agent config formats (CLAUDE.md, AGENTS.md, Cursor rules, MCP configs, SKILL.md)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["agents", "claude", "codex", "cursor", "opencode", "mcp", "skills", "converter"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[project.urls]
+Homepage = "https://github.com/omrgpt/agentport"
+Repository = "https://github.com/omrgpt/agentport"
+Issues = "https://github.com/omrgpt/agentport/issues"
+Changelog = "https://github.com/omrgpt/agentport/blob/main/CHANGELOG.md"
+
+[project.scripts]
+agentport = "agentport.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

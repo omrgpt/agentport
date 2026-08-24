@@ -1,0 +1,12 @@
+{
+  // opencode supports comments in jsonc
+  "theme": "verminal",
+  "mcp": {
+    /* block comment */
+    "fs": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-fetch"],
+      "enabled": true,
+    },
+  }
+}

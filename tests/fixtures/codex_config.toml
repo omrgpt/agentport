@@ -1,0 +1,11 @@
+# This is a comment that should be preserved conceptually but dropped on merge
+model = "gpt-5-codex"
+approval_policy = "on-request"
+
+[mcp_servers.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/srv"]
+startup_timeout_ms = 20_000
+
+[mcp_servers.docs]
+url = "https://docs.internal.example.com/mcp"

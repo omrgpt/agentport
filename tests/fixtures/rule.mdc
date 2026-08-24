@@ -1,0 +1,10 @@
+---
+description: Rules for TypeScript files
+globs:
+  - "*.ts"
+alwaysApply: false
+---
+
+Use strict TypeScript.
+
+Avoid `any`.
