@@ -34,7 +34,7 @@ Changelog = "https://github.com/omrgpt/agentport/blob/main/CHANGELOG.md"
 agentport = "agentport.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=9.1.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
