@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agentport"
+name = "agentport-cli"
 version = "0.1.0"
 description = "Lightweight, security-first converter between coding-agent config formats (CLAUDE.md, AGENTS.md, Cursor rules, MCP configs, SKILL.md)."
 readme = "README.md"
