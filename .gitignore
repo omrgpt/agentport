@@ -9,3 +9,7 @@ htmlcov/
 .venv/
 venv/
 .agentport-out/
+
+.env
+.env.*
+!.env.example
