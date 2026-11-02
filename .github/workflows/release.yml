@@ -40,7 +40,7 @@ jobs:
         # images ONLY under version tags - commit-SHA pins fail with
         # "manifest unknown". Integrity additionally covered by the
         # attestation step above.
-        uses: pypa/gh-action-pypi-publish@v1.14.2
+        uses: pypa/gh-action-pypi-publish@v1.14.3
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
